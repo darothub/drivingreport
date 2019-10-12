@@ -10,32 +10,41 @@ const { getVehicle } = require('api')
  * @returns {any} Driver report data
  */
 
-let trips = await getTrips().then(data => {
-  return data.map(item => {
-    item.billedAmount = parseFloat(item.billedAmount.toString().replace(',', ''));
-    return item;
-  })
-})
+
 async function driverReport() {
   // Your code goes here
-
+let trips = await changeTrip()
+console.log(trips)
   
   let getId = trips.reduce((user, cur)=>{
     user[cur.driverID] ? user[cur.driverID] = user[cur.driverID] + 1 : user[cur.driverID] = 1
     return user
   }, {})
 
+  
+
   let mapId = Object.keys(getId)
   // console.log(mapId)
   let result = await mapId.reduce(getReport, [])
-  // console.log(result)
+  console.log(result)
   return result
   
 
 }
 
+async function changeTrip(){
+  let trips = await getTrips().then(data => {
+    return data.map(item => {
+      item.billedAmount = parseFloat(item.billedAmount.toString().replace(',', ''));
+      return item;
+    })
+  })
+  return trips
+}
+
 async function getReport(acc, cur){
-  
+  let trips = await changeTrip()
+  console.log(trips)
 
   acc = await acc
   // console.log(acc)
@@ -86,11 +95,11 @@ async function getReport(acc, cur){
         // console.log(trips)
         return { id, cash, nonCash, totalAmountEarned, totalCashAmount, totalNonCashAmount, trips }
       })
-      user["noOfCashTrips"] = tripDetails.map(item => item.cash).reduce((user, cur) => { return user + cur }, 0)
-      user["noOfNonCashTrips"] = tripDetails.map(item => item.nonCash).reduce((user, cur) => { return user + cur }, 0)
-      user["totalAmountEarned"] = tripDetails.map(item => item.totalAmountEarned).reduce((user, cur) => { return user + cur }, 0).toFixed(2)
-      user["totalCashAmount"] = tripDetails.map(item => item.totalCashAmount).reduce((user, cur) => { return user + cur }, 0).toFixed(2)
-      user["totalNonCashAmount"] = tripDetails.map(item => item.totalNonCashAmount).reduce((user, cur) => { return user + cur }, 0).toFixed(2)
+      user["noOfCashTrips"] = tripDetails.reduce((user, { cash }) => { return user + cash }, 0)
+      user["noOfNonCashTrips"] = tripDetails.reduce((user, { nonCash }) => { return user + nonCash }, 0)
+      user["totalAmountEarned"] = tripDetails.reduce((user, { totalAmountEarned }) => { return user + totalAmountEarned }, 0).toFixed(2)
+      user["totalCashAmount"] = tripDetails.reduce((user, { totalCashAmount }) => { return user + totalCashAmount }, 0).toFixed(2)
+      user["totalNonCashAmount"] = tripDetails.reduce((user, { totalNonCashAmount }) => { return user + totalNonCashAmount }, 0).toFixed(2)
       user['trips'] = []
       user['trips'].push(tripDetails.map(item => item.trips))
       // console.log(user)
@@ -100,7 +109,7 @@ async function getReport(acc, cur){
       return acc
 
     }).catch(err =>{
-      console.log(acc)
+      // console.log(acc)
       if(err){
         user = {
           id: cur,
@@ -126,17 +135,18 @@ async function getReport(acc, cur){
           // console.log(trips)
           return { id, cash, nonCash, totalAmountEarned, totalCashAmount, totalNonCashAmount, trips }
         })
-        user["noOfCashTrips"] = tripDetails.map(item => item.cash).reduce((user, cur) => { return user + cur }, 0)
-        user["noOfNonCashTrips"] = tripDetails.map(item => item.nonCash).reduce((user, cur) => { return user + cur }, 0)
-        user["totalAmountEarned"] = tripDetails.map(item => item.totalAmountEarned).reduce((user, cur) => { return user + cur }, 0).toFixed(2)
-        user["totalCashAmount"] = tripDetails.map(item => item.totalCashAmount).reduce((user, cur) => { return user + cur }, 0).toFixed(2)
-        user["totalNonCashAmount"] = tripDetails.map(item => item.totalNonCashAmount).reduce((user, cur) => { return user + cur }, 0).toFixed(2)
+        // console.log(tripDetails)
+        user["noOfCashTrips"] = tripDetails.reduce((user, {cash}) => { return user + cash }, 0)
+        user["noOfNonCashTrips"] = tripDetails.reduce((user, {nonCash}) => { return user + nonCash }, 0)
+        user["totalAmountEarned"] = parseFloat(tripDetails.reduce((user, { totalAmountEarned }) => { return user + totalAmountEarned }, 0).toFixed(2))
+        user["totalCashAmount"] = parseFloat(tripDetails.reduce((user, { totalCashAmount }) => { return user + totalCashAmount }, 0).toFixed(2))
+        user["totalNonCashAmount"] = parseFloat(tripDetails.reduce((user, { totalNonCashAmount }) => { return user + totalNonCashAmount }, 0).toFixed(2))
         user['trips'] = []
         user['trips'].push(tripDetails.map(item => item.trips))
      
-        console.log ('wait')
+        // console.log ('wait')
       }
-      console.log(user)
+      // console.log(user)
       acc.push(user)
       return acc
 
@@ -147,7 +157,7 @@ async function getReport(acc, cur){
 }
 
 
-driverReport().then(data => {console.log(data)})
+driverReport()
 
 
 module.exports = driverReport;
