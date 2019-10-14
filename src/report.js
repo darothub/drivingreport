@@ -10,154 +10,122 @@ const { getVehicle } = require('api')
  * @returns {any} Driver report data
  */
 
-
 async function driverReport() {
   // Your code goes here
-let trips = await changeTrip()
-console.log(trips)
-  
-  let getId = trips.reduce((user, cur)=>{
-    user[cur.driverID] ? user[cur.driverID] = user[cur.driverID] + 1 : user[cur.driverID] = 1
-    return user
-  }, {})
-
-  
-
-  let mapId = Object.keys(getId)
-  // console.log(mapId)
-  let result = await mapId.reduce(getReport, [])
-  console.log(result)
-  return result
-  
-
-}
-
-async function changeTrip(){
-  let trips = await getTrips().then(data => {
-    return data.map(item => {
-      item.billedAmount = parseFloat(item.billedAmount.toString().replace(',', ''));
-      return item;
-    })
+  let trip = await getTrips()
+  trip = trip.map(item => {
+    item.billedAmount = parseFloat(item.billedAmount.toString().replace(',', '')).toFixed(2);
+    return item;
   })
-  return trips
-}
+  let mapId = trip.map(item => item.driverID )
+  // console.log(mapId)
 
-async function getReport(acc, cur){
-  let trips = await changeTrip()
-  console.log(trips)
+  // let mapId = Object.keys(getId)
+  // console.log(mapId)
 
-  acc = await acc
-  // console.log(acc)
-  let user = {}
-  let singleTrip = trips.filter(item => item.driverID == cur)
-  // console.log(singleTrip)
-  if (singleTrip && singleTrip.length){
+  let eachTripSummary = mapId.reduce((acc, cur) => {
+    let singleTrip = trip.filter(item => item.driverID == cur)
+    acc.push(singleTrip)
+    return acc
+  }, [])
+  // eachTripSummary = eachTripSummary[0]
+  // console.log(eachTripSummary)
 
-    return getDriver(cur).then( async data => {
-      let { name, phone, vehicleID } = data
+  // console.log(trip)
+  let reducedReport = eachTripSummary.reduce(async(acc, cur) =>{
+    
+    acc = await acc
+    // console.log(acc)
+    let user = {}
+    let singleTrip = trip.filter(item => item.driverID == cur[0].driverID)
+    // console.log(singleTrip.length)
+    let cash = cur.filter(item => item.isCash == true)
+    // console.log(cash.length)
+    let nonCash = cur.filter(item => item.isCash == false)
+
+    let driverSummary = await getDriverSummary(cur[0]['driverID'])
+    let trips = []
+    let customer = {}
+    // console.log(cur[0]['pickup'])
+    cur[0].user ? (customer['user'] = cur[0]['user']['name'], customer['created'] = cur[0]['created'], customer['pickup'] = cur[0]['pickup']['address'],
+      customer['destination'] = cur[0]['destination']['address'], customer['billed'] = cur[0]['billedAmount'], customer['isCash'] = cur[0]['isCash']) : false
+      // console.log(customer)
+    trips.push(customer)
+
+    let vehicles = []
+    if(driverSummary == undefined){
+      // console.log(cur)
       user = {
-        fullName: name,
-        id: cur,
+        id: cur[0]['driverID'],
+        vehicles: vehicles,
+        noOfCashTrips: cash.length,
+        noOfNonCashTrips: nonCash.length,
+        noOfTrips: cur.length,
+        trips: JSON.stringify(trips)
+      }
+      acc.push(user)
+      // console.log(user)
+      return acc
+    }
+    let driverInfo = driverSummary[0]
+    let vehicleInfo = driverSummary[1]
+    let { name, phone } = driverInfo
+    let { plate, manufacturer } = vehicleInfo[0]
+    // console.log(plate)
+    let vpm = {
+      plate,
+      manufacturer
+    }
+    vehicles.push(vpm)
+      // console.log(cash.length)
+      user ={
+        fulName: name,
         phone,
-        noOfTrips: singleTrip.length,
-        noOfVehicle: vehicleID.length
+        id: cur[0]['driverID'],
+        vehicles: vehicles,
+        noOfCashTrips: cash.length,
+        noOfNonCashTrips: nonCash.length,
+        noOfTrips: cur.length, 
+        trips: trips
       }
-      let vehiclePromise = Promise.all(vehicleID.map(async item => {
-        return await getVehicle(item)
-      }))
-      let vehicleDetails =  await vehiclePromise
-      // console.log(vehicleDetails)
-      let vehicle = vehicleDetails.map(item => {
-        let details = {
-          plate: item.plate,
-          manufacturer: item.manufacturer
-        }
-        return details
-      })
-      user['vehicles'] = vehicle
-      let tripDetails = singleTrip.map(item => {
-        let id = item.driverID
-        let cash = 0
-        let nonCash = 0
-        let totalAmountEarned = 0
-        let totalCashAmount = 0
-        let totalNonCashAmount = 0
-        item.isCash ? (cash++ , totalCashAmount += item.billedAmount, totalAmountEarned += item.billedAmount) : (nonCash++ , totalNonCashAmount += item.billedAmount, totalAmountEarned += item.billedAmount)
-        let trips = {
-          user: item.user.name,
-          created: item.created,
-          pickup: item.pickup.address,
-          destination: item.destination.address,
-          billed: totalAmountEarned,
-          isCash: item.isCash
-        }
-
-        // console.log(trips)
-        return { id, cash, nonCash, totalAmountEarned, totalCashAmount, totalNonCashAmount, trips }
-      })
-      user["noOfCashTrips"] = tripDetails.reduce((user, { cash }) => { return user + cash }, 0)
-      user["noOfNonCashTrips"] = tripDetails.reduce((user, { nonCash }) => { return user + nonCash }, 0)
-      user["totalAmountEarned"] = tripDetails.reduce((user, { totalAmountEarned }) => { return user + totalAmountEarned }, 0).toFixed(2)
-      user["totalCashAmount"] = tripDetails.reduce((user, { totalCashAmount }) => { return user + totalCashAmount }, 0).toFixed(2)
-      user["totalNonCashAmount"] = tripDetails.reduce((user, { totalNonCashAmount }) => { return user + totalNonCashAmount }, 0).toFixed(2)
-      user['trips'] = []
-      user['trips'].push(tripDetails.map(item => item.trips))
-      // console.log(user)
-
+    
       acc.push(user)
       // console.log(acc)
-      return acc
 
-    }).catch(err =>{
-      // console.log(acc)
-      if(err){
-        user = {
-          id: cur,
-          noOfTrips: singleTrip.length,
-          vehicles: []
-        }
-        let tripDetails = singleTrip.map(item => {
-          let id = item.driverID
-          let cash = 0
-          let nonCash = 0
-          let totalAmountEarned = 0
-          let totalCashAmount = 0
-          let totalNonCashAmount = 0
-          item.isCash ? (cash++ , totalCashAmount += item.billedAmount, totalAmountEarned += item.billedAmount) : (nonCash++ , totalNonCashAmount += item.billedAmount, totalAmountEarned += item.billedAmount)
-          let trips = {
-            user: item.user.name,
-            created: item.created,
-            pickup: item.pickup.address,
-            destination: item.destination.address,
-            billed: totalAmountEarned,
-            isCash: item.isCash
-          }
-          // console.log(trips)
-          return { id, cash, nonCash, totalAmountEarned, totalCashAmount, totalNonCashAmount, trips }
-        })
-        // console.log(tripDetails)
-        user["noOfCashTrips"] = tripDetails.reduce((user, {cash}) => { return user + cash }, 0)
-        user["noOfNonCashTrips"] = tripDetails.reduce((user, {nonCash}) => { return user + nonCash }, 0)
-        user["totalAmountEarned"] = parseFloat(tripDetails.reduce((user, { totalAmountEarned }) => { return user + totalAmountEarned }, 0).toFixed(2))
-        user["totalCashAmount"] = parseFloat(tripDetails.reduce((user, { totalCashAmount }) => { return user + totalCashAmount }, 0).toFixed(2))
-        user["totalNonCashAmount"] = parseFloat(tripDetails.reduce((user, { totalNonCashAmount }) => { return user + totalNonCashAmount }, 0).toFixed(2))
-        user['trips'] = []
-        user['trips'].push(tripDetails.map(item => item.trips))
-     
-        // console.log ('wait')
-      }
-      // console.log(user)
-      acc.push(user)
-      return acc
+    return acc
+  }, [])
+  // reducedReport.then(data =>{console.log(data)})
+  return reducedReport
 
+}
+
+async function getDriverSummary(param) {
+
+  let driverDetails = await getDriver(param)
+  .then(data => {return data}).catch(err => {return err})
+  // console.log(driverDetails)
+  let vehicleDetails;
+  let { vehicleID } = driverDetails
+  if(driverDetails != "Error" & vehicleID != undefined){
+    
+    // console.log(vehicleID)
+    vehicleDetails = vehicleID.map(async item => {
+      let vehicleSummary = getVehicle(item)
+      return vehicleSummary
     })
-  }
+    // console.log(await vehicleDetails)
+    
+    return await Promise.all([driverDetails, vehicleDetails])
 
-  return acc
+  }
 }
 
 
-driverReport()
+driverReport().then(data => {
+  console.log(data)
+})
+
+
 
 
 module.exports = driverReport;
