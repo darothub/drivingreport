@@ -17,86 +17,100 @@ async function driverReport() {
     item.billedAmount = parseFloat(item.billedAmount.toString().replace(',', '')).toFixed(2);
     return item;
   })
-  let mapId = trip.map(item => item.driverID )
+  let mapId = [... new Set(trip.map(item => item.driverID ))]
   // console.log(mapId)
-
-  // let mapId = Object.keys(getId)
-  // console.log(mapId)
-
-  let eachTripSummary = mapId.reduce((acc, cur) => {
-    let singleTrip = trip.filter(item => item.driverID == cur)
+  let reduceReport = mapId.reduce((acc, cur)=>{
+    let singleTrip = trip.filter(item => item.driverID == cur )
     acc.push(singleTrip)
     return acc
-  }, [])
-  // eachTripSummary = eachTripSummary[0]
-  // console.log(eachTripSummary)
+  }, [])  
 
-  // console.log(trip)
-  let reducedReport = eachTripSummary.reduce(async(acc, cur) =>{
-    
-    acc = await acc
-    // console.log(acc)
-    let user = {}
-    let singleTrip = trip.filter(item => item.driverID == cur[0].driverID)
-    // console.log(singleTrip.length)
-    let cash = cur.filter(item => item.isCash == true)
-    // console.log(cash.length)
+  let reducedTripReport = reduceReport.reduce((acc, cur, index, arr) =>{
+    // console.log(cur)
+    let driver = {}
+    let singleTrip = cur[0]
+  //  console.log(cur)
+    let cash = cur.filter(item => item.isCash ==true )
     let nonCash = cur.filter(item => item.isCash == false)
-
-    let driverSummary = await getDriverSummary(cur[0]['driverID'])
-    let trips = []
-    let customer = {}
-    // console.log(cur[0]['pickup'])
-    cur[0].user ? (customer['user'] = cur[0]['user']['name'], customer['created'] = cur[0]['created'], customer['pickup'] = cur[0]['pickup']['address'],
-      customer['destination'] = cur[0]['destination']['address'], customer['billed'] = cur[0]['billedAmount'], customer['isCash'] = cur[0]['isCash']) : false
-      // console.log(customer)
-    trips.push(customer)
-
-    let vehicles = []
-    if(driverSummary == undefined){
-      // console.log(cur)
-      user = {
-        id: cur[0]['driverID'],
-        vehicles: vehicles,
-        noOfCashTrips: cash.length,
-        noOfNonCashTrips: nonCash.length,
-        noOfTrips: cur.length,
-        trips: JSON.stringify(trips)
+    // console.log(nonCash)
+    let totalCashAmountByDriver= sum(cash, "billedAmount")
+    let totalNonCashAmountByDriver = sum(nonCash, "billedAmount")
+    let totalAmountEarnedByDriver = sum(cur, 'billedAmount')
+    // console.log(totalNonCashAmountByDriver)
+    // console.log(totalAmountEarnedByDriver)
+      
+    let users = cur.map(item => {
+      // console.log(item)
+      return {
+        "user": item.user.name,
+        "created": item.created,
+        "pickup": item.pickup.address,
+        "destination": item.destination.address,
+        "billed": item.billedAmount,
+        "isCash": item.isCash
       }
-      acc.push(user)
-      // console.log(user)
-      return acc
-    }
-    let driverInfo = driverSummary[0]
-    let vehicleInfo = driverSummary[1]
-    let { name, phone } = driverInfo
-    let { plate, manufacturer } = vehicleInfo[0]
-    // console.log(plate)
-    let vpm = {
-      plate,
-      manufacturer
-    }
-    vehicles.push(vpm)
-      // console.log(cash.length)
-      user ={
-        fulName: name,
-        phone,
-        id: cur[0]['driverID'],
-        vehicles: vehicles,
-        noOfCashTrips: cash.length,
-        noOfNonCashTrips: nonCash.length,
-        noOfTrips: cur.length, 
-        trips: trips
-      }
+    })
+ 
     
-      acc.push(user)
+    driver ={
+     id: singleTrip.driverID,
+      noOfCashTrips: cash.length,
+      noOfNonCashTrips: nonCash.length,
+      noOfTrips: cur.length,
+      trips: users,
+      totalAmountEarned: totalAmountEarnedByDriver,
+      totalCashAmount: totalCashAmountByDriver,
+      totalNonCashAmount: totalNonCashAmountByDriver  
+    }
+    // console.log(driver)
+    acc.push(driver)
       // console.log(acc)
+    return acc
+  }, [])
+  // console.log(reducedTripReport)
+  // return reducedTripReport
+  let finalReport = reducedTripReport.reduce(async (acc, cur) => {
+    acc = await acc
+    let driver = {}
+
+    let driverSummary = getDriverSummary(cur['id']).then(data=> {return data}).catch(err =>{return err})
+    let driverPromise =  await driverSummary
+    // console.log(driverPromise)
+
+      if(driverPromise == undefined){
+        // console.log(cur)
+        acc.push(cur)
+        return acc
+      }
+      // console.log(Array.isArray(cur))
+      
+        let { name, phone } = driverPromise[0]
+        let { plate, manufacturer } = driverPromise[1]
+        driver = {
+          fullName: name,
+          phone,
+          id: cur['id'],
+          vehicles: [{
+            plate,
+            manufacturer
+          }],
+          noOfTrips: cur.noOfTrips,
+          noOfCashTrips: cur.noOfCashTrips,
+          noOfNonCashTrips: cur.noOfNonCashTrips,
+          trips: cur.trips,
+          totalAmountEarned: cur.totalAmountEarned,
+          totalCashAmount: cur.totalCashAmount,
+          totalNonCashAmount: cur.totalNonCashAmount  
+        }
+
+
+    // console.log(driver)
+    acc.push(driver)
 
     return acc
   }, [])
-  // reducedReport.then(data =>{console.log(data)})
-  return reducedReport
-
+  // finalReport = await finalReport
+  return finalReport
 }
 
 async function getDriverSummary(param) {
@@ -109,21 +123,39 @@ async function getDriverSummary(param) {
   if(driverDetails != "Error" & vehicleID != undefined){
     
     // console.log(vehicleID)
-    vehicleDetails = vehicleID.map(async item => {
+    vehicleDetails = await Promise.all(vehicleID.map(async item => {
       let vehicleSummary = getVehicle(item)
       return vehicleSummary
-    })
+    }))
     // console.log(await vehicleDetails)
     
-    return await Promise.all([driverDetails, vehicleDetails])
+    return  Promise.all([driverDetails, ...vehicleDetails])
 
   }
 }
 
+function sum(a, b) {
+  let sum;
+  if(b == undefined){
+    sum = a.reduce((acc, cur) => {
+      acc = acc + parseFloat(cur)
+      return acc
+    }, 0)
+    return sum
+  }
+  sum = a.reduce((acc, cur) => {
+    acc = acc + parseFloat(cur[b])
 
-driverReport().then(data => {
-  console.log(data)
-})
+    return acc
+  }, 0)
+  sum = sum.toFixed(2)
+  return sum
+}
+
+
+
+driverReport().then(data => {console.log(data)})
+
 
 
 
