@@ -1,6 +1,6 @@
 const { getTrips } = require('api');
 const { getDriver } = require('api')
-
+const  { driverReport }  = require('api')
 
 /**
  * This function should return the trip data analysis
@@ -26,7 +26,7 @@ async function analysis() {
       user = await user
       let each = arr.filter(item=> item.driverID == cur.driverID )
       // console.log(each[0].driverID)
-      if(user.noOfTrip > each.length ){
+      if(user.noOfTrips > each.length){
         return user
       }
       let driver = await getDriver(each[0].driverID).then(data => { return data }).catch(err => { return err })
@@ -52,10 +52,10 @@ async function analysis() {
       let driver = await toGetDriver(each[0].driverID)
       // console.log(await driver)
       let { name, email, phone } = driver
-      if (acc['totalAmountEarned'] > parseFloat(earning) && name != undefined){
+      if (acc['totalAmountEarned'] > parseFloat(earning) && name != undefined) {
         return acc
       }
-      
+
       acc = {
         name,
         email,
@@ -94,7 +94,7 @@ async function toGetDriver(arr){
   let get = await getDriver(arr).then(data=>{
     return data
   })
-  .catch(err => {return err})
+.catch(err => {return err})
   return get
 }
 function sum(a, b) {
@@ -122,10 +122,7 @@ function toFilter(a, b){
 
 
 
-analysis().then(data=>{
-  console.log(data)
-}).catch(err=>{
-  console.log(err)})
+analysis().then(data=>{console.log(data)}).catch(err=>{console.log(err)})
 
 
 module.exports = analysis;
